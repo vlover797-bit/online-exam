@@ -3,4 +3,4 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.vercel]
-python_version = "3.9"
+python_version = "3.12"
