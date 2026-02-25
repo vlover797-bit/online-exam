@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>Welcome back, {{ user.username }}!</h2>
+    <p>Good luck with your upcoming assessments. We are monitoring for integrity.</p>
+</div>
+
+<h3>Your Overview</h3>
+<div class="dashboard-grid">
+    <!-- Available Exams Card -->
+    <div class="stat-card primary">
+        <div>
+            <div class="stat-icon bg-indigo-100">📝</div>
+            <div class="stat-label">Available Exams</div>
+            <div class="stat-value">Check List</div> <!-- Dynamic count could go here -->
+            <p style="color: #6b7280; font-size: 0.9rem;">View and take assigned exams.</p>
+        </div>
+        <a href="{% url 'exam_list' %}" class="action-btn btn-primary-action">Go to Exams →</a>
+    </div>
+
+    <!-- Results Card -->
+    <div class="stat-card success">
+        <div>
+            <div class="stat-icon bg-green-100">🏆</div>
+            <div class="stat-label">My Results</div>
+            <div class="stat-value">View</div>
+            <p style="color: #6b7280; font-size: 0.9rem;">Check your performance history.</p>
+        </div>
+        <a href="#" class="action-btn" onclick="alert('Results history coming soon!')">View History</a>
+    </div>
+
+    <!-- Integrity Status -->
+    <div class="stat-card danger">
+        <div>
+            <div class="stat-icon bg-red-100">🛡️</div>
+            <div class="stat-label">Integrity Status</div>
+            <div class="stat-value">Good</div>
+            <p style="color: #6b7280; font-size: 0.9rem;">No major violations detected.</p>
+        </div>
+        <div class="action-btn" style="border:none; cursor:default; color: green;">Verified ✅</div>
+    </div>
+</div>
+
+<h3 style="margin-top: 3rem;">Recent Activity</h3>
+<div class="card" style="border-left: 4px solid var(--primary-color);">
+    <p><strong>System Notification:</strong> Welcome to the SecureExam portal. Please ensure your webcam is working
+        before starting any exam.</p>
+</div>
+{% endblock %}

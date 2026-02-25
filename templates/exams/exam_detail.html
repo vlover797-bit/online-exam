@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-header" style="background: linear-gradient(135deg, #db2777, #e11d48);">
+    <h2>{{ exam.title }}</h2>
+    <p>Examination Details and Status</p>
+</div>
+
+<div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
+    <!-- Main Info -->
+    <div class="card">
+        <h3 style="margin-top: 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 1rem; margin-bottom: 1rem;">
+            Instructions</h3>
+        <p style="line-height: 1.6; color: #374151;">{{ exam.description }}</p>
+
+        <div style="margin-top: 2rem;">
+            <h4 style="color: #374151;">Assessment Rules:</h4>
+            <ul style="color: #4b5563; line-height: 1.6;">
+                <li>Webcam monitoring is active throughout the session.</li>
+                <li>Fullscreen mode is mandatory. Switching tabs will trigger a violation.</li>
+                <li>Ensure you are in a quiet, well-lit environment.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Sidebar / Action -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div class="stat-card primary">
+            <div>
+                <div class="stat-label">Duration</div>
+                <div class="stat-value">{{ exam.duration_minutes }} <span
+                        style="font-size: 1rem; font-weight: 400;">mins</span></div>
+            </div>
+            <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 1rem 0;">
+            <div>
+                <div class="stat-label">Start Time</div>
+                <div style="font-weight: 600; color: #1f2937;">{{ exam.start_time|date:"M d, H:i" }}</div>
+            </div>
+        </div>
+
+        {% if user.is_faculty %}
+        <div class="card">
+            <h3>Manage Questions</h3>
+            <p>{{ exam.questions.count }} Questions Added</p>
+            <a href="{% url 'add_question' exam.pk %}" class="action-btn btn-primary-action"
+                style="display: block; text-decoration: none; text-align: center; margin-bottom: 0.5rem;">+ Add
+                Question</a>
+
+            <h4 style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Current Questions:</h4>
+            <ul style="padding-left: 1rem; color: #4b5563; font-size: 0.9rem;">
+                {% for question in exam.questions.all %}
+                <li>{{ question.text|truncatechars:40 }} ({{ question.marks }} pts)</li>
+                {% empty %}
+                <li>No questions yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if user.is_student %}
+        <div class="card" style="text-align: center;">
+            {% if exam.is_active %}
+            <h3>Ready to Begin?</h3>
+            <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem;">Once started, the timer cannot be
+                paused.</p>
+            <a href="{% url 'take_exam' exam.pk %}" class="btn btn-primary-action"
+                style="width: 100%; display: block; padding: 1rem; font-size: 1.1rem; text-decoration: none;">Start Exam
+                Now</a>
+            {% else %}
+            <h3>Not Active</h3>
+            <p>This exam is not currently available.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-header" style="background: linear-gradient(135deg, #059669, #10b981);">
+    <h2>Available Examinations</h2>
+    <p>View upcoming exams or manage existing ones.</p>
+</div>
+
+{% if user.is_faculty %}
+<div style="margin-bottom: 2rem; text-align: right;">
+    <a href="{% url 'exam_create' %}" class="btn btn-primary-action"
+        style="background: linear-gradient(90deg, #4f46e5, #7c3aed); padding: 0.75rem 1.5rem; text-decoration: none; border-radius: 0.5rem; color: white;">+
+        Create New Exam</a>
+</div>
+{% endif %}
+
+<div class="dashboard-grid">
+    {% for exam in exams %}
+    <div class="stat-card" style="border-top: 4px solid #4f46e5;">
+        <div>
+            <h3 style="margin-top: 0; font-size: 1.25rem;">{{ exam.title }}</h3>
+            <p style="color: #6b7280; margin-bottom: 1rem; font-size: 0.9rem;">{{ exam.description|truncatechars:100 }}
+            </p>
+
+            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #4b5563;">
+                    <span>⏱️</span> {{ exam.duration_minutes }} mins
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #4b5563;">
+                    <span>📅</span> {{ exam.start_time|date:"M d, Y H:i" }}
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'exam_detail' exam.pk %}" class="action-btn"
+            style="background: #e0e7ff; color: #4338ca; border: none; font-weight: 600;">View Details →</a>
+    </div>
+    {% empty %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+        <p style="font-size: 1.25rem; color: #6b7280;">No exams available at the moment.</p>
+        {% if user.is_faculty %}
+        <p>Click "Create New Exam" to get started.</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

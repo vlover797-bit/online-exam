@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-left">
+            <h1>SecureExam</h1>
+            <p>Join our secure examination platform today. Experience integrity and fairness in every test.</p>
+        </div>
+        <div class="login-right">
+            <h2 class="login-title">Create Account</h2>
+            <p class="login-subtitle">Sign up to get started</p>
+
+            <form method="post">
+                {% csrf_token %}
+
+                {% for field in form %}
+                <div class="input-group">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-color); font-weight: 500;">
+                        {{ field.label }}
+                    </label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <div style="color: var(--danger); font-size: 0.875rem; margin-top: 0.25rem;">
+                        {{ field.errors|striptags }}
+                    </div>
+                    {% endif %}
+                    {% if field.help_text %}
+                    <div style="color: var(--text-light); font-size: 0.75rem; margin-top: 0.25rem;">
+                        {{ field.help_text|striptags }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <button type="submit" class="btn-login">Register</button>
+            </form>
+
+            <p style="text-align: center; margin-top: 1.5rem; color: var(--text-light);">
+                Already have an account? <a href="{% url 'login' %}"
+                    style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Sign In</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

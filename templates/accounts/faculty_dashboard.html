@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>Faculty Dashboard</h2>
+    <p>Monitor exams, track student performance, and review security alerts.</p>
+</div>
+
+<div class="dashboard-grid">
+    <!-- Stats Cards -->
+    <div class="stat-card primary">
+        <div class="stat-icon bg-indigo-100">🎓</div>
+        <div class="stat-label">Total Students</div>
+        <div class="stat-value">{{ total_students }}</div>
+        <a href="#students" class="action-btn">View Details</a>
+    </div>
+
+    <div class="stat-card success">
+        <div class="stat-icon bg-green-100">📝</div>
+        <div class="stat-label">Exams Conducted</div>
+        <div class="stat-value">{{ total_exams }}</div>
+        <a href="#exams" class="action-btn">Manage Exams</a>
+    </div>
+
+    <div class="stat-card danger">
+        <div class="stat-icon bg-red-100">⚠️</div>
+        <div class="stat-label">Fraud Alerts</div>
+        <div class="stat-value">{{ recent_violations.count }}</div>
+        <a href="#alerts" class="action-btn">View Logs</a>
+    </div>
+</div>
+
+<div style="margin-top: 3rem;">
+    <!-- Recent Violations Table -->
+    <h3 id="alerts" style="margin-bottom: 1.5rem; color: var(--text-color);">Recent Security Alerts</h3>
+    <div class="card" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f9fafb; text-align: left;">
+                    <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Student</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Exam</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Violation</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Time</th>
+                    <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in recent_violations %}
+                <tr>
+                    <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ log.attempt.student.username }}</td>
+                    <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ log.attempt.exam.title }}</td>
+                    <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">
+                        <span
+                            style="padding: 0.25rem 0.5rem; border-radius: 999px; background: #fee2e2; color: #991b1b; font-size: 0.875rem;">
+                            {{ log.get_violation_type_display }}
+                        </span>
+                    </td>
+                    <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ log.timestamp|date:"M d, H:i" }}
+                    </td>
+                    <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">
+                        {% if log.image_snapshot %}
+                        <a href="{{ log.image_snapshot.url }}" target="_blank" style="color: var(--primary-color);">View
+                            Image</a>
+                        {% else %}
+                        <span style="color: var(--text-light);">No Image</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" style="padding: 2rem; text-align: center; color: var(--text-light);">No recent
+                        violations detected.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div style="margin-top: 3rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+    <!-- Exam List Table -->
+    <div id="exams">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="color: var(--text-color); margin: 0;">All Exams</h3>
+            <a href="{% url 'exam_create' %}" class="btn-login"
+                style="width: auto; padding: 0.5rem 1.5rem; font-size: 0.9rem;">+ Create New Exam</a>
+        </div>
+        <div class="card" style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f9fafb; text-align: left;">
+                        <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Title</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Starts</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exam in exams %}
+                    <tr>
+                        <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ exam.title }}</td>
+                        <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ exam.start_time|date:"M d, H:i"
+                            }}</td>
+                        <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">
+                            {% if exam.is_active %}
+                            <span style="color: var(--success);">Active</span>
+                            {% else %}
+                            <span style="color: var(--text-light);">Closed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="padding: 2rem; text-align: center; color: var(--text-light);">No exams
+                            found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Student List Table -->
+    <div id="students">
+        <h3 style="margin-bottom: 1.5rem; color: var(--text-color);">Registered Students</h3>
+        <div class="card" style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #f9fafb; text-align: left;">
+                        <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Username</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Email</th>
+                        <th style="padding: 1rem; border-bottom: 1px solid #e5e7eb;">Joined</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ student.username }}</td>
+                        <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ student.email|default:"-" }}
+                        </td>
+                        <td style="padding: 1rem; border-bottom: 1px solid #f3f4f6;">{{ student.date_joined|date:"M d,
+                            Y" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" style="padding: 2rem; text-align: center; color: var(--text-light);">No students
+                            registered.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

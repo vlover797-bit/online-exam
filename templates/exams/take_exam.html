@@ -1,0 +1,389 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div id="exam-container">
+    <div class="header-row" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Exam: {{ exam.title }}</h2>
+        <div id="timer" style="font-size: 1.5rem; font-weight: bold; color: var(--danger);">00:00</div>
+    </div>
+
+    <!-- Room Scan Overlay -->
+    <div id="room-scan-overlay"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;">
+        <h1>Security Check</h1>
+        <p style="font-size: 1.2rem; margin-bottom: 2rem;">A 360° Room Scan is required before starting this exam.</p>
+
+        <div
+            style="width: 640px; height: 480px; background: #000; margin-bottom: 1rem; position: relative; border: 2px solid #fff;">
+            <video id="scan-video" width="100%" height="100%" autoplay playsinline muted
+                style="object-fit: cover;"></video>
+            <div id="scan-guide"
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 4px dashed cyan; width: 80%; height: 80%; border-radius: 50%; display: none;">
+            </div>
+            <div id="camera-error"
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; text-align: center; color: #ff4444; display: none;">
+                <p style="font-size: 1.2rem; font-weight: bold; margin-bottom: 10px;">Camera Access Failed</p>
+                <p id="camera-error-msg" style="font-size: 1rem;">Please check permissions.</p>
+            </div>
+        </div>
+
+        <div id="scan-controls">
+            <button id="btn-start-scan" class="btn-login"
+                style="font-size: 1.2rem; padding: 1rem 2rem; width: auto;">Start 360° Scan</button>
+            <div id="scan-progress"
+                style="display: none; width: 300px; height: 10px; background: #333; margin-top: 1rem; border-radius: 5px; overflow: hidden;">
+                <div id="scan-bar" style="width: 0%; height: 100%; background: cyan; transition: width 0.1s linear;">
+                </div>
+            </div>
+            <p id="scan-status" style="margin-top: 1rem;">Please maintain a clear view of your surroundings.</p>
+        </div>
+    </div>
+
+    <div class="row" style="display: flex; gap: 2rem; opacity: 0.1; pointer-events: none;" id="main-exam-content">
+        <!-- Question Area -->
+        <div class="question-area" style="flex: 2;">
+            <div class="card">
+                {% for question in exam.questions.all %}
+                <div class="question-block" style="margin-bottom: 2rem;">
+                    <p><strong>Q{{ forloop.counter }}:</strong> {{ question.text }}</p>
+                    <div class="options">
+                        {% for option in question.options.all %}
+                        <label style="display: block; margin-bottom: 0.5rem;">
+                            <input type="radio" name="q_{{ question.id }}" value="{{ option.id }}">
+                            {{ option.text }}
+                        </label>
+                        {% empty %}
+                        <p>No options available.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                <button class="btn-login" onclick="submitExam()" style="width: auto; padding: 0.75rem 2rem;">Submit
+                    Exam</button>
+            </div>
+        </div>
+
+        <!-- Proctoring Area (Sidebar) -->
+        <div class="proctoring-area" style="flex: 1;">
+            <div class="card" style="text-align: center;">
+                <h3>Proctoring Active</h3>
+
+                <!-- Laptop Camera -->
+                <div style="margin-bottom: 20px;">
+                    <p style="margin-bottom: 5px; color: cyan;">Laptop Front View</p>
+                    <video id="webcam" width="100%" autoplay playsinline muted
+                        style="border: 2px solid cyan; border-radius: 5px;"></video>
+                </div>
+
+                <!-- Mobile Camera -->
+                <div style="margin-bottom: 10px;">
+                    <p style="margin-bottom: 5px; color: cyan;">Mobile Rear View</p>
+
+                    <!-- Feed Container -->
+                    <div id="mobile-container"
+                        style="position: relative; width: 100%; padding-top: 75%; background: #000; border: 2px solid cyan; border-radius: 5px; overflow: hidden;">
+                        <img id="mobile-feed-exam"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; display: none;"
+                            alt="Mobile Feed" />
+                        <div id="mobile-status"
+                            style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #888; font-size: 0.8rem; text-align: center;">
+                            Initializing...</div>
+                    </div>
+
+                    <!-- Reconnect QR Code (Hidden by default) -->
+                    <div id="reconnect-qr"
+                        style="display: none; background: white; padding: 10px; margin-top: 10px; border-radius: 5px;">
+                        <p style="color: black; font-size: 0.8rem; margin-bottom: 5px;">Scan to Reconnect:</p>
+                        <div id="qrcode-exam"></div>
+                    </div>
+                </div>
+                <canvas id="canvas" style="display:none;"></canvas>
+                <div id="status-indicator" style="margin-top: 1rem; color: green;">System Normal</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<form id="exam-form" method="post" action="{% url 'submit_exam' exam.id %}" style="display: none;">
+    {% csrf_token %}
+    <!-- Answers will be injected here via JS if needed, or we rely on the form inside logic if we wrapped it processing inputs -->
+    <!-- Creating hidden inputs for answers -->
+</form>
+
+<!-- QR Code Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+    const attemptId = {{ attempt.id }};
+    const mobileUrl = "{{ mobile_url }}";
+    // ... rest of script
+
+    const examDuration = {{ exam.duration_minutes }} * 60; // seconds
+    let timeLeft = examDuration;
+    let timerInterval;
+
+    // Elements
+    const scanVideo = document.getElementById('scan-video');
+    const examVideo = document.getElementById('webcam'); // The sidebar video
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('room-scan-overlay');
+    const mainContent = document.getElementById('main-exam-content');
+    const scanGuide = document.getElementById('scan-guide');
+    const scanBar = document.getElementById('scan-bar');
+    const scanStatus = document.getElementById('scan-status');
+
+    let localStream = null;
+
+    // Initial Camera Setup for Scan
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            localStream = stream;
+            scanVideo.srcObject = stream;
+            examVideo.srcObject = stream; // Ready for later
+            document.getElementById('camera-error').style.display = 'none';
+        })
+        .catch(err => {
+            console.error("Webcam error", err);
+            const errorDiv = document.getElementById('camera-error');
+            const errorMsg = document.getElementById('camera-error-msg');
+            errorDiv.style.display = 'block';
+
+            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'https:') {
+                errorMsg.innerHTML = `
+                    Browser blocked camera access due to insecure connection.<br><br>
+                    <strong>SOLUTION:</strong><br>
+                    Use <code>localhost</code> instead of IP address.<br>
+                    Change URL to: <br>
+                    <a href="http://localhost:8000${window.location.pathname}" style="color: cyan;">http://localhost:8000${window.location.pathname}</a>
+                `;
+            } else {
+                errorMsg.innerText = "Please allow camera permissions in your browser settings.";
+            }
+        });
+
+    // Room Scan Logic
+    document.getElementById('btn-start-scan').addEventListener('click', () => {
+        document.getElementById('btn-start-scan').style.display = 'none';
+        document.getElementById('scan-progress').style.display = 'block';
+        scanGuide.style.display = 'block';
+        scanStatus.innerText = "Please slowly rotate your device 360° to show your room.";
+
+        // Motion-Based Scan Process
+        let progress = 0;
+        const interval = 200; // Check every 200ms
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = 100; // Small size for fast processing
+        tempCanvas.height = 100;
+        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+
+        let prevData = null;
+        let stationaryCount = 0;
+
+        const scanTimer = setInterval(() => {
+            if (scanVideo.videoWidth === 0) return; // Wait until video is playing
+
+            tempCtx.drawImage(scanVideo, 0, 0, tempCanvas.width, tempCanvas.height);
+            const currentData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
+
+            if (prevData) {
+                // Calculate difference
+                let diff = 0;
+                for (let i = 0; i < currentData.length; i += 4) {
+                    diff += Math.abs(currentData[i] - prevData[i]) +
+                        Math.abs(currentData[i + 1] - prevData[i + 1]) +
+                        Math.abs(currentData[i + 2] - prevData[i + 2]);
+                }
+                const avgDiff = diff / (currentData.length / 4);
+
+                // If there's meaningful movement
+                if (avgDiff > 12) { // Threshold for motion 
+                    progress += 1.5; // Requires ~13 seconds of steady movement
+                    stationaryCount = 0;
+                } else {
+                    stationaryCount++;
+                }
+            }
+            prevData = currentData;
+
+            if (progress > 100) progress = 100;
+            scanBar.style.width = progress + '%';
+
+            // Provide user feedback
+            if (stationaryCount > 5) {
+                scanStatus.innerText = "Please keep rotating the camera to cover the full room.";
+                scanStatus.style.color = "yellow";
+            } else if (progress >= 33 && progress < 66) {
+                scanStatus.innerText = "Keep rotating... ensure all corners are visible.";
+                scanStatus.style.color = "white";
+            } else if (progress >= 66) {
+                scanStatus.innerText = "Almost done...";
+                scanStatus.style.color = "white";
+            }
+
+            if (progress >= 100) {
+                clearInterval(scanTimer);
+                scanStatus.style.color = "white";
+                completeScan();
+            }
+        }, interval);
+    });
+
+    function completeScan() {
+        scanStatus.innerText = "Scan Verified. Starting Exam...";
+        scanBar.style.backgroundColor = "#4ade80"; // Green
+
+        setTimeout(() => {
+            // Hide Overlay
+            overlay.style.transition = "opacity 0.5s";
+            overlay.style.opacity = "0";
+            setTimeout(() => {
+                overlay.style.display = "none";
+
+                // Activate Exam
+                mainContent.style.opacity = "1";
+                mainContent.style.pointerEvents = "all";
+
+                // Start Exam Logic
+                startTimer();
+                startProctoring();
+
+                // Fullscreen recommendation
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            }, 500);
+        }, 1000);
+    }
+
+    function startProctoring() {
+        setInterval(() => {
+            if (!localStream) return;
+
+            // Capture frame from the shared stream (examVideo is showing it)
+            canvas.width = examVideo.videoWidth;
+            canvas.height = examVideo.videoHeight;
+            ctx.drawImage(examVideo, 0, 0, canvas.width, canvas.height);
+            const dataURL = canvas.toDataURL('image/jpeg');
+
+            // Send to server
+            fetch('/proctoring/process_frame/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image: dataURL,
+                    attempt_id: attemptId
+                })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('status-indicator');
+                    if (data.status === 'violation') {
+                        statusDiv.innerHTML = "WARNING: " + data.type;
+                        statusDiv.style.color = "red";
+                        // alert("Warning: " + data.type); // Optional: reduce spam
+                    } else {
+                        statusDiv.innerHTML = "System Normal";
+                        statusDiv.style.color = "green";
+                    }
+                })
+                .catch(err => console.error(err));
+
+        }, 5000); // Check every 5 seconds
+
+        // Mobile Feed Polling
+        const mobileFeedImg = document.getElementById('mobile-feed-exam');
+        const mobileStatusDiv = document.getElementById('mobile-status');
+        const reconnectQrDiv = document.getElementById('reconnect-qr');
+        let qrGenerated = false;
+
+        setInterval(() => {
+            fetch(`/proctoring/get_mobile_frame/${attemptId}/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        mobileFeedImg.src = data.image;
+                        mobileFeedImg.style.display = 'block';
+                        mobileStatusDiv.style.display = 'none';
+                        reconnectQrDiv.style.display = 'none';
+                    } else {
+                        // Maintain the last frame visible, but overlay with 'Offline' status
+                        mobileStatusDiv.style.display = 'block';
+                        mobileStatusDiv.innerText = "Mobile Offline";
+                        mobileStatusDiv.style.color = "red";
+                        mobileStatusDiv.style.background = "rgba(0,0,0,0.5)";
+                        mobileStatusDiv.style.padding = "5px";
+
+                        // Show QR Code for reconnection
+                        reconnectQrDiv.style.display = 'block';
+                        if (!qrGenerated) {
+                            // Ensure the container is visible before generating
+                            new QRCode(document.getElementById("qrcode-exam"), {
+                                text: mobileUrl,
+                                width: 200, // Make it bigger so it's easier to scan
+                                height: 200,
+                                colorDark: "#000000",
+                                colorLight: "#ffffff",
+                                correctLevel: QRCode.CorrectLevel.H
+                            });
+                            qrGenerated = true;
+                        }
+                    }
+                })
+                .catch(err => console.error("Mobile feed error", err));
+        }, 1000); // Poll every 1 second for smoother feed
+
+        // Timer Logic
+        function startTimer() {
+            const timerDisplay = document.getElementById('timer');
+            timerDisplay.textContent = formatTime(timeLeft);
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = formatTime(timeLeft);
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert("Time's up!");
+                    submitExam();
+                }
+            }, 1000);
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        // Tab Switch Detection
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden && document.getElementById('room-scan-overlay').style.display === 'none') {
+                // Only log if exam has started
+                alert("Tab switching is a violation!");
+            }
+        });
+
+        // Disable Right Click
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        function submitExam() {
+            // Collect answers
+            const form = document.getElementById('exam-form');
+            const questions = document.querySelectorAll('.question-block');
+
+            questions.forEach(q => {
+                const inputs = q.querySelectorAll('input[type="radio"]:checked');
+                if (inputs.length > 0) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = inputs[0].name;
+                    input.value = inputs[0].value;
+                    form.appendChild(input);
+                }
+            });
+
+            form.submit();
+        }
+</script>
+{% endblock %}

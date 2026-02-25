@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Proctoring Camera</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            background: #000;
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 600px;
+            border: 2px solid cyan;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #4ade80;
+        }
+
+        .error {
+            color: #ff4d4d;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Mobile Proctoring Active</h1>
+    <p>Please position your phone to show your side view and screen.</p>
+
+    <button id="start-btn"
+        style="padding: 15px 30px; font-size: 1.2rem; background: #4ade80; color: #000; border: none; border-radius: 8px; margin: 20px 0; cursor: pointer; font-weight: bold;">Tap
+        Here to Connect Camera</button>
+
+    <video id="video" autoplay playsinline muted style="display: none;"></video>
+    <div id="status" class="status" style="display: none;">Initializing...</div>
+
+    <div id="camera-error"
+        style="display: none; padding: 20px; text-align: left; background: #222; margin-top: 20px; border-radius: 10px;">
+        <h3 style="color: #ff4d4d; margin-top: 0;">Camera Access Blocked</h3>
+        <p>Your browser blocked camera access because this connection is not HTTPS.</p>
+        <p><strong>To fix this on Chrome Android:</strong></p>
+        <ol style="padding-left: 20px; line-height: 1.6;">
+            <li>Go to: <code
+                    style="background: #444; padding: 2px 5px; border-radius: 4px; word-break: break-all;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
+            </li>
+            <li>Enable <strong>"Insecure origins treated as secure"</strong>.</li>
+            <li>Add your current host url to the text box.</li>
+            <li>Click <strong>Relaunch</strong> at the bottom.</li>
+        </ol>
+    </div>
+
+    <canvas id="canvas" style="display: none;"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const statusDiv = document.getElementById('status');
+        const startBtn = document.getElementById('start-btn');
+        const cameraError = document.getElementById('camera-error');
+        const context = canvas.getContext('2d');
+        const attemptId = "{{ attempt_id }}";
+
+        // Wake Lock
+        let wakeLock = null;
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock active');
+                } catch (err) {
+                    console.error('Wake Lock error:', err);
+                }
+            }
+        }
+
+        // Re-request wake lock on visibility change
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                requestWakeLock();
+            }
+        });
+
+        startBtn.addEventListener('click', () => {
+            startBtn.style.display = 'none';
+            video.style.display = 'inline-block';
+            statusDiv.style.display = 'block';
+
+            requestWakeLock();
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                statusDiv.style.display = 'none';
+                cameraError.style.display = 'block';
+                console.error("navigator.mediaDevices is undefined. Likely insecure context.");
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" }
+            })
+                .then(stream => {
+                    video.srcObject = stream;
+                    statusDiv.innerText = "Camera Connected. KEEP SCREEN ON.";
+                    statusDiv.style.color = "#4ade80";
+                    cameraError.style.display = 'none';
+                    // Explicit play might be needed on some mobile browsers
+                    video.play().catch(e => console.error("Video play error:", e));
+                    setInterval(sendFrame, 1000); // Send frame every 1 second for smoother video
+                })
+                .catch(err => {
+                    statusDiv.style.display = 'none';
+                    cameraError.style.display = 'block';
+                    console.error("Camera Error: ", err);
+                });
+        });
+
+        function sendFrame() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth / 2; // Reduce resolution for speed
+                canvas.height = video.videoHeight / 2;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const dataURL = canvas.toDataURL('image/jpeg', 0.5); // Compress quality
+
+                fetch('/proctoring/mobile_upload/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: dataURL, attempt_id: attemptId })
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            statusDiv.innerText = "Streaming Active (" + new Date().toLocaleTimeString() + ")";
+                            statusDiv.style.color = "#4ade80";
+                        } else {
+                            statusDiv.innerText = "Server Error: " + (data.message || "Unknown");
+                            statusDiv.style.color = "orange";
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Upload error", err);
+                        statusDiv.innerText = "Connection Lost. Retrying...";
+                        statusDiv.style.color = "red";
+                    });
+            }
+        }
+    </script>
+</body>
+
+</html>

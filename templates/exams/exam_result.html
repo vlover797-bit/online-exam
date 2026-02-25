@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Exam Result: {{ attempt.exam.title }}</h2>
+<div class="card">
+    <p><strong>Status:</strong> {% if attempt.is_completed %}Completed{% else %}In Progress{% endif %}</p>
+    <p><strong>Score:</strong> {{ attempt.score }}</p>
+    <h3>Proctoring Report</h3>
+    <ul>
+        {% for log in attempt.proctor_logs.all %}
+        <li style="color: red;">{{ log.violation_type }} at {{ log.timestamp }} ({{ log.details }})</li>
+        {% empty %}
+        <li style="color: green;">No violations detected.</li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'dashboard' %}" class="btn">Back to Dashboard</a>
+</div>
+{% endblock %}
