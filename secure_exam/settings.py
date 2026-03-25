@@ -87,10 +87,7 @@ WSGI_APPLICATION = 'secure_exam.wsgi.application'
 # Database configuration using MongoDB Atlas
 import os
 
-database_url = os.environ.get(
-    "DATABASE_URL",
-    "mongodb+srv://psyckid:psyckid123@cluster0.9z7ne2s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-)
+database_url = "mongodb+srv://psyckid:psyckid123@cluster0.9z7ne2s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&connectTimeoutMS=5000&serverSelectionTimeoutMS=5000"
 
 DATABASES = {
     'default': {
