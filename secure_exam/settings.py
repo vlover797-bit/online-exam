@@ -84,18 +84,23 @@ WSGI_APPLICATION = 'secure_exam.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# Database configuration using MongoDB Atlas
+import os
+
+database_url = os.environ.get(
+    "DATABASE_URL",
+    "mongodb+srv://psyckid:psyckid123@cluster0.9z7ne2s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+)
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django_mongodb_backend',
+        'NAME': 'online_exam_db',
+        'CLIENT': {
+            'host': database_url,
+        },
     }
 }
-
-import os
-import dj_database_url
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    DATABASES['default'] = dj_database_url.parse(database_url)
 
 
 # Password validation
