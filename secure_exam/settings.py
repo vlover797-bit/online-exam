@@ -87,8 +87,11 @@ WSGI_APPLICATION = 'secure_exam.wsgi.application'
 # Database configuration using MongoDB Atlas
 import os
 
-# Use standard mongodb:// URI with direct nodes to bypass Vercel AWS Lambda DNS SRV bugs
-database_url = "mongodb://psyckid:psyckid123@ac-5yeehwt-shard-00-00.9z7ne2s.mongodb.net:27017,ac-5yeehwt-shard-00-01.9z7ne2s.mongodb.net:27017,ac-5yeehwt-shard-00-02.9z7ne2s.mongodb.net:27017/online_exam_db?ssl=true&replicaSet=atlas-5yeehwt-shard-0&authSource=admin&retryWrites=true&w=majority&appName=Cluster0&connectTimeoutMS=5000&serverSelectionTimeoutMS=5000"
+# Use standard mongodb+srv without aggressive timeouts
+database_url = os.environ.get(
+    "DATABASE_URL", 
+    "mongodb+srv://psyckid:psyckid123@cluster0.9z7ne2s.mongodb.net/online_exam_db?retryWrites=true&w=majority&appName=Cluster0"
+)
 
 DATABASES = {
     'default': {
