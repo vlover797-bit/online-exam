@@ -20,7 +20,23 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 
+from django.http import HttpResponse
+from django.db import connections
+import traceback
+
+def test_db(request):
+    try:
+        conn = connections['default']
+        conn.ensure_connection()
+        # For MongoDB, doing a quick query guarantees it talked to the server
+        from accounts.models import User
+        count = User.objects.count()
+        return HttpResponse(f"<h1>MongoDB Connection Successful!</h1><p>Found {count} users.</p>")
+    except Exception as e:
+        return HttpResponse(f"<h1>MongoDB Connection FAILED</h1><pre>{traceback.format_exc()}</pre>")
+
 urlpatterns = [
+    path('test-db/', test_db),
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('exams/', include('exams.urls')),
