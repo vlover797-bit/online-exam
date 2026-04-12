@@ -141,14 +141,15 @@ def process_frame(request):
                     violation = 'multiple_faces'
                     violation_details = f"Detected {person_count} people in monitoring frame"
 
-            # 2. Now Check Mobile Frame for Objects and Faces (only if no laptop violation or to confirm)
+            # 2. Now Check Mobile Frame for Objects and Faces (Aggressive Monitoring)
             detected_objects = []
+            mobile_person_count = 0
+            
             if str(attempt_id) in mobile_streams:
                 timestamp, mobile_image_data = mobile_streams[str(attempt_id)]
-                if time.time() - timestamp < 10:
+                if time.time() - timestamp < 15: # Increased timeout to 15s to be more forgiving
                     try:
-                        # Decode mobile frame
-                        # Decode mobile frame with file-based fallback for OpenCV 4.11.0
+                        # Decode mobile frame with file-based fallback
                         try:
                             if ';base64,' in mobile_image_data:
                                 _, m_imgstr = mobile_image_data.split(';base64,', 1)
@@ -156,7 +157,6 @@ def process_frame(request):
                                 m_imgstr = mobile_image_data
                             m_encoded_data = base64.b64decode(m_imgstr)
                             
-                            import os
                             m_temp = f"m_temp_{uuid.uuid4()}.jpg"
                             with open(m_temp, "wb") as f:
                                 f.write(m_encoded_data)
@@ -166,18 +166,18 @@ def process_frame(request):
                         except Exception as e:
                             print(f"Mobile file-decode error: {e}")
                             m_frame = None
-
+                        
                         if m_frame is not None:
-                            # Face detection on mobile (someone behind student)
+                            # Face detection on mobile (person in room)
                             m_gray = cv2.cvtColor(m_frame, cv2.COLOR_BGR2GRAY)
-                            m_faces = face_cascade.detectMultiScale(m_gray, 1.1, 4)
+                            m_faces = face_cascade.detectMultiScale(m_gray, 1.05, 3) # Even more sensitive for room view
                             if len(m_faces) > 0:
-                                detected_objects.append("face")
+                                if "face" not in detected_objects: detected_objects.append("face")
                                 if not violation:
                                     violation = 'unauthorized_person_behind'
-                                    violation_details = "Unauthorized person detected in rear view"
+                                    violation_details = f"Unauthorized person (face) detected in background: {len(m_faces)}"
 
-                            # Object detection for mobile phones/books
+                            # Object detection for mobile room monitoring
                             if yolo_net is not None:
                                 blob_m = cv2.dnn.blobFromImage(m_frame, 0.00392, (320, 320), (0, 0, 0), True, crop=False)
                                 yolo_net.setInput(blob_m)
@@ -188,32 +188,32 @@ def process_frame(request):
                                         scores = detection[5:]
                                         class_id = np.argmax(scores)
                                         confidence = scores[class_id]
-                                        if confidence > 0.6 and coco_classes and class_id < len(coco_classes):
+                                        # HIGH SENSITIVITY for proctoring (0.4)
+                                        if confidence > 0.4 and coco_classes and class_id < len(coco_classes):
                                             class_name = coco_classes[class_id]
                                             
                                             if class_name not in detected_objects:
                                                 detected_objects.append(class_name)
                                             
-                                            # Electronic Devices
-                                            electronics = ["cell phone", "laptop", "tvmonitor", "mouse", "keyboard"]
+                                            if class_name == "person":
+                                                mobile_person_count += 1
+                                            
+                                            # Electronic Devices & Study Materials
+                                            electronics = ["cell phone", "laptop", "tvmonitor", "mouse", "keyboard", "remote"]
                                             if class_name in electronics and not violation:
                                                 violation = 'electronic_device_detected'
-                                                violation_details = f"Detected electronic device: {class_name}"
+                                                violation_details = f"DETECTED ELECTRONIC DEVICE ({class_name}) IN ROOM"
                                             
-                                            # Notebooks
                                             elif class_name == "book" and not violation:
                                                 violation = 'notebook_detected'
-                                                violation_details = "Detected notebook/book in room"
-                                            
-                                            # Person (confirmation)
-                                            elif class_name == "person" and not violation:
-                                                violation = 'unauthorized_person_behind'
-                                                violation_details = "Unauthorized person detected in rear view"
-                                                if "face" not in detected_objects:
-                                                    detected_objects.append("person")
+                                                violation_details = "DETECTED UNAUTHORIZED STUDY MATERIAL (BOOK)"
+                                
+                                # If multiple people in room view
+                                if mobile_person_count > 0 and not violation:
+                                    violation = 'unauthorized_person_behind'
+                                    violation_details = "Unauthorized person(s) detected in background by room camera"
                     except Exception as e:
                         print(f"Error in mobile processing: {e}")
-                        pass
             
             # Response prep
             response_data = {'status': 'ok', 'processed': True, 'face_count': len(faces)}
