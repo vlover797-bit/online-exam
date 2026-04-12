@@ -97,29 +97,27 @@ def process_frame(request):
             violation = None
             violation_details = None
             
-            # Use Haar Cascade for quick face counting - moderate strictness
-            faces = face_cascade.detectMultiScale(gray, 1.1, 6) 
+            # Use Haar Cascade for quick face counting - VERY SENSITIVE
+            faces = face_cascade.detectMultiScale(gray, 1.05, 3) 
+            print(f"DEBUG: Front Camera - Faces detected: {len(faces)}")
             
-            # Use global state for small hysteresis (confirmation)
-            if not hasattr(process_frame, 'face_history'):
-                process_frame.face_history = {}
-            
-            attempt_history = process_frame.face_history.get(attempt_id, [])
-            attempt_history.append(len(faces))
-            if len(attempt_history) > 3:
-                attempt_history.pop(0)
-            process_frame.face_history[attempt_id] = attempt_history
-
-            # Check if multiple faces are consistently detected
-            stable_multiple = len(attempt_history) >= 2 and all(count > 1 for count in attempt_history[-2:])
-            
-            if stable_multiple:
+            if len(faces) > 1:
                 violation = 'multiple_faces'
-                violation_details = f"Multiple faces detected: {len(faces)}"
+                violation_details = f"Detected {len(faces)} faces in monitoring view"
             elif len(faces) == 0:
-                if len(attempt_history) >= 2 and all(count == 0 for count in attempt_history[-2:]):
+                # Still keep missing face history to prevent flicker-alerts
+                if not hasattr(process_frame, 'missing_face_history'):
+                    process_frame.missing_face_history = {}
+                miss_count = process_frame.missing_face_history.get(attempt_id, 0)
+                miss_count += 1
+                process_frame.missing_face_history[attempt_id] = miss_count
+                
+                if miss_count >= 2:
                     violation = 'no_face'
-                    violation_details = "Face not detected in student view"
+                    violation_details = "Face not currently visible in student camera"
+            else:
+                if hasattr(process_frame, 'missing_face_history'):
+                    process_frame.missing_face_history[attempt_id] = 0
 
             # Use YOLO to confirm if multiple people are in laptop view
             if yolo_net is not None:
@@ -133,13 +131,15 @@ def process_frame(request):
                         scores = detection[5:]
                         class_id = np.argmax(scores)
                         confidence = scores[class_id]
-                        if confidence > 0.45 and coco_classes and class_id < len(coco_classes):
+                        if confidence > 0.4 and coco_classes and class_id < len(coco_classes):
                             if coco_classes[class_id] == "person":
                                 person_count += 1
+                
+                print(f"DEBUG: Front Camera - YOLO Person Count: {person_count}")
 
                 if person_count > 1:
                     violation = 'multiple_faces'
-                    violation_details = f"Detected {person_count} people in monitoring frame"
+                    violation_details = f"Detected {person_count} actual people in monitoring frame"
 
             # 2. Now Check Mobile Frame for Objects and Faces (Aggressive Monitoring)
             detected_objects = []
