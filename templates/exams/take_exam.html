@@ -146,6 +146,10 @@
                 
                 if (avgVolume > 35) {
                     voiceViolationCount++;
+                    if (voiceViolationCount >= 3) { // 3 seconds of consistent noise
+                        showViolationAlert('unauthorized_voice', 'Conversational sound or background noise detected.');
+                        voiceViolationCount = 0; // Reset after alert
+                    }
                 } else {
                     voiceViolationCount = Math.max(0, voiceViolationCount - 1);
                 }

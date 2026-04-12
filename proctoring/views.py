@@ -97,8 +97,8 @@ def process_frame(request):
             violation = None
             violation_details = None
             
-            # Use Haar Cascade for quick face counting - increased strictness to reduce false positives
-            faces = face_cascade.detectMultiScale(gray, 1.1, 8) 
+            # Use Haar Cascade for quick face counting - moderate strictness
+            faces = face_cascade.detectMultiScale(gray, 1.1, 6) 
             
             # Use global state for small hysteresis (confirmation)
             if not hasattr(process_frame, 'face_history'):
@@ -110,21 +110,19 @@ def process_frame(request):
                 attempt_history.pop(0)
             process_frame.face_history[attempt_id] = attempt_history
 
-            # Only trigger if the LAST 2 frames consistently showed multiple faces
+            # Check if multiple faces are consistently detected
             stable_multiple = len(attempt_history) >= 2 and all(count > 1 for count in attempt_history[-2:])
             
             if stable_multiple:
                 violation = 'multiple_faces'
-                violation_details = f"Multiple faces consistently detected: {len(faces)}"
+                violation_details = f"Multiple faces detected: {len(faces)}"
             elif len(faces) == 0:
-                # Same for no_face: must be missing for 2+ frames
                 if len(attempt_history) >= 2 and all(count == 0 for count in attempt_history[-2:]):
                     violation = 'no_face'
-                    violation_details = "No face visible in front camera"
+                    violation_details = "Face not detected in student view"
 
             # Use YOLO to confirm if multiple people are in laptop view
             if yolo_net is not None:
-                # Use numpy frame for YOLO
                 blob_l = cv2.dnn.blobFromImage(frame, 0.00392, (320, 320), (0, 0, 0), True, crop=False)
                 yolo_net.setInput(blob_l)
                 outs_l = yolo_net.forward(output_layers)
@@ -135,13 +133,13 @@ def process_frame(request):
                         scores = detection[5:]
                         class_id = np.argmax(scores)
                         confidence = scores[class_id]
-                        if confidence > 0.6 and coco_classes and class_id < len(coco_classes):
+                        if confidence > 0.45 and coco_classes and class_id < len(coco_classes):
                             if coco_classes[class_id] == "person":
                                 person_count += 1
 
-                if person_count > 1 and not violation:
+                if person_count > 1:
                     violation = 'multiple_faces'
-                    violation_details = f"Multiple people detected in view: {person_count}"
+                    violation_details = f"Detected {person_count} people in monitoring frame"
 
             # 2. Now Check Mobile Frame for Objects and Faces (only if no laptop violation or to confirm)
             detected_objects = []
