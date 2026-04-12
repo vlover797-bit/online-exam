@@ -32,6 +32,7 @@ import numpy as np
 
 # Load Face and Eye Detector
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
 eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
 
 # Load YOLO
@@ -97,13 +98,26 @@ def process_frame(request):
             violation = None
             violation_details = None
             
-            # Use Haar Cascade for quick face counting - VERY SENSITIVE
+            # 1. Frontal face detection
             faces = face_cascade.detectMultiScale(gray, 1.05, 3) 
-            print(f"DEBUG: Front Camera - Faces detected: {len(faces)}")
             
-            if len(faces) > 1:
+            # 2. Profile face detection (sideways)
+            profiles = profile_cascade.detectMultiScale(gray, 1.05, 3)
+            
+            # Combine all detections
+            all_faces = list(faces) + list(profiles)
+            
+            # Simple overlap reduction (not sophisticated NMS but helps)
+            total_unique_faces = len(all_faces)
+            if len(faces) > 0 and len(profiles) > 0:
+                # If both detect something, it's very likely multiple people
+                total_unique_faces = max(len(faces), len(profiles)) + 1
+            
+            print(f"DEBUG: Front Camera - Frontal: {len(faces)}, Profile: {len(profiles)}, Final Count estimate: {total_unique_faces}")
+            
+            if total_unique_faces > 1:
                 violation = 'multiple_faces'
-                violation_details = f"Detected {len(faces)} faces in monitoring view"
+                violation_details = f"Detected {total_unique_faces} people/faces in monitoring view"
             elif len(faces) == 0:
                 # Still keep missing face history to prevent flicker-alerts
                 if not hasattr(process_frame, 'missing_face_history'):
