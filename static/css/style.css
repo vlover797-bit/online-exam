@@ -379,3 +379,29 @@ body {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     color: white;
 }
+
+/* Mobile Responsiveness for PWA */
+@media (max-width: 768px) {
+    .row {
+        flex-direction: column !important;
+        gap: 1rem !important;
+    }
+    
+    .question-area, .proctoring-area {
+        flex: unset !important;
+        width: 100%;
+    }
+    
+    .login-card {
+        flex-direction: column;
+    }
+
+    .login-left {
+        padding: 2rem;
+    }
+
+    .navbar {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}

@@ -2,6 +2,18 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import Exam, Question, Option, StudentExamAttempt
 from .forms import ExamForm, QuestionForm, OptionForm
+import socket
+
+def get_local_ip():
+    """Get the local machine IP address"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
 
 def is_faculty(user):
     return user.is_faculty()
@@ -76,7 +88,11 @@ def take_exam(request, pk):
     if attempt.is_completed:
         return render(request, 'exams/exam_result.html', {'attempt': attempt})
     
-    mobile_url = request.build_absolute_uri(f'/proctoring/mobile/{attempt.id}/')
+    # FORCE HTTPS for mobile camera access (Required by browsers for non-localhost)
+    local_ip = get_local_ip()
+    port = request.META.get('SERVER_PORT', '8001')
+    mobile_url = f"https://{local_ip}:{port}/proctoring/mobile/{attempt.id}/"
+    
     return render(request, 'exams/take_exam.html', {'exam': exam, 'attempt': attempt, 'mobile_url': mobile_url})
 
 def redirect_to_system_check(request, pk):

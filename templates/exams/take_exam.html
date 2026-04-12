@@ -7,39 +7,7 @@
         <div id="timer" style="font-size: 1.5rem; font-weight: bold; color: var(--danger);">00:00</div>
     </div>
 
-    <!-- Room Scan Overlay -->
-    <div id="room-scan-overlay"
-        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;">
-        <h1>Security Check</h1>
-        <p style="font-size: 1.2rem; margin-bottom: 2rem;">A 360° Room Scan is required before starting this exam.</p>
-
-        <div
-            style="width: 640px; height: 480px; background: #000; margin-bottom: 1rem; position: relative; border: 2px solid #fff;">
-            <video id="scan-video" width="100%" height="100%" autoplay playsinline muted
-                style="object-fit: cover;"></video>
-            <div id="scan-guide"
-                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border: 4px dashed cyan; width: 80%; height: 80%; border-radius: 50%; display: none;">
-            </div>
-            <div id="camera-error"
-                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; text-align: center; color: #ff4444; display: none;">
-                <p style="font-size: 1.2rem; font-weight: bold; margin-bottom: 10px;">Camera Access Failed</p>
-                <p id="camera-error-msg" style="font-size: 1rem;">Please check permissions.</p>
-            </div>
-        </div>
-
-        <div id="scan-controls">
-            <button id="btn-start-scan" class="btn-login"
-                style="font-size: 1.2rem; padding: 1rem 2rem; width: auto;">Start 360° Scan</button>
-            <div id="scan-progress"
-                style="display: none; width: 300px; height: 10px; background: #333; margin-top: 1rem; border-radius: 5px; overflow: hidden;">
-                <div id="scan-bar" style="width: 0%; height: 100%; background: cyan; transition: width 0.1s linear;">
-                </div>
-            </div>
-            <p id="scan-status" style="margin-top: 1rem;">Please maintain a clear view of your surroundings.</p>
-        </div>
-    </div>
-
-    <div class="row" style="display: flex; gap: 2rem; opacity: 0.1; pointer-events: none;" id="main-exam-content">
+    <div class="row" style="display: flex; gap: 2rem; opacity: 1; pointer-events: auto;" id="main-exam-content">
         <!-- Question Area -->
         <div class="question-area" style="flex: 2;">
             <div class="card">
@@ -70,14 +38,15 @@
 
                 <!-- Laptop Camera -->
                 <div style="margin-bottom: 20px;">
-                    <p style="margin-bottom: 5px; color: cyan;">Laptop Front View</p>
+                    <p style="margin-bottom: 5px; color: cyan;">Laptop Camera - Front View (Student Face)</p>
                     <video id="webcam" width="100%" autoplay playsinline muted
                         style="border: 2px solid cyan; border-radius: 5px;"></video>
+                    <div id="status-indicator" style="margin-top: 10px; color: green; font-weight: bold;">System Normal</div>
                 </div>
 
                 <!-- Mobile Camera -->
                 <div style="margin-bottom: 10px;">
-                    <p style="margin-bottom: 5px; color: cyan;">Mobile Rear View</p>
+                    <p style="margin-bottom: 5px; color: cyan;">Mobile Camera - Rear View (Room Monitoring)</p>
 
                     <!-- Feed Container -->
                     <div id="mobile-container"
@@ -88,17 +57,23 @@
                         <div id="mobile-status"
                             style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #888; font-size: 0.8rem; text-align: center;">
                             Initializing...</div>
+                        
+                        <!-- Identified Objects Overlay -->
+                        <div id="mobile-objects-overlay" 
+                            style="position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0,0,0,0.6); color: #4ade80; font-size: 0.75rem; padding: 5px 10px; display: none;">
+                            Detections: <span id="mobile-objects-list"></span>
+                        </div>
                     </div>
 
                     <!-- Reconnect QR Code (Hidden by default) -->
                     <div id="reconnect-qr"
-                        style="display: none; background: white; padding: 10px; margin-top: 10px; border-radius: 5px;">
-                        <p style="color: black; font-size: 0.8rem; margin-bottom: 5px;">Scan to Reconnect:</p>
-                        <div id="qrcode-exam"></div>
+                        style="display: none; background: white; padding: 15px; margin-top: 15px; border-radius: 5px; max-width: 180px; margin-left: auto; margin-right: auto; border: 3px solid #4ade80;">
+                        <p style="color: black; font-size: 0.8rem; margin: 0 0 10px 0; font-weight: bold;">📱 SCAN TO CONNECT MOBILE:</p>
+                        <div id="qrcode-exam" style="width: 140px; height: 140px; margin: 0 auto; background: white;"></div>
+                        <p style="color: black; font-size: 0.7rem; margin: 8px 0 0 0; text-align: center;"><strong>Use your phone camera</strong></p>
                     </div>
                 </div>
                 <canvas id="canvas" style="display:none;"></canvas>
-                <div id="status-indicator" style="margin-top: 1rem; color: green;">System Normal</div>
             </div>
         </div>
     </div>
@@ -110,280 +85,295 @@
     <!-- Creating hidden inputs for answers -->
 </form>
 
-<!-- QR Code Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     const attemptId = {{ attempt.id }};
     const mobileUrl = "{{ mobile_url }}";
-    // ... rest of script
-
-    const examDuration = {{ exam.duration_minutes }} * 60; // seconds
+    const examDuration = {{ exam.duration_minutes }} * 60;
     let timeLeft = examDuration;
     let timerInterval;
 
     // Elements
-    const scanVideo = document.getElementById('scan-video');
-    const examVideo = document.getElementById('webcam'); // The sidebar video
+    const examVideo = document.getElementById('webcam');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const overlay = document.getElementById('room-scan-overlay');
-    const mainContent = document.getElementById('main-exam-content');
-    const scanGuide = document.getElementById('scan-guide');
-    const scanBar = document.getElementById('scan-bar');
-    const scanStatus = document.getElementById('scan-status');
+    const mobileContainer = document.getElementById('mobile-container');
+    const mobileFeedImg = document.getElementById('mobile-feed-exam');
+    const mobileStatusDiv = document.getElementById('mobile-status');
+    const reconnectQrDiv = document.getElementById('reconnect-qr');
+    const qrContainer = document.getElementById('qrcode-exam');
 
     let localStream = null;
+    let audioContext = null;
+    let analyser = null;
+    let microphone = null;
+    let voiceViolationCount = 0;
+    let mobileConnected = false;
+    let qrGenerated = false;
 
-    // Initial Camera Setup for Scan
-    navigator.mediaDevices.getUserMedia({ video: true })
+    // Set canvas for frame capture
+    canvas.width = 640;
+    canvas.height = 480;
+
+    // === FRONT CAMERA SETUP (Laptop - Student Face) ===
+    console.log('Starting front camera setup...');
+    navigator.mediaDevices.getUserMedia({ 
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+        audio: true 
+    })
         .then(stream => {
+            console.log('Front camera stream obtained');
             localStream = stream;
-            scanVideo.srcObject = stream;
-            examVideo.srcObject = stream; // Ready for later
-            document.getElementById('camera-error').style.display = 'none';
+            examVideo.srcObject = stream;
+            examVideo.play().catch(e => console.error('Video play error:', e));
+
+            // Audio Analysis for voice detection
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            microphone = audioContext.createMediaStreamSource(stream);
+            microphone.connect(analyser);
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            setInterval(() => {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for(let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                let avgVolume = sum / bufferLength;
+                
+                if (avgVolume > 35) {
+                    voiceViolationCount++;
+                } else {
+                    voiceViolationCount = Math.max(0, voiceViolationCount - 1);
+                }
+            }, 1000);
+
+            // 2. Process video frame for violations (every 1 second)
+            const processFrame = () => {
+                if (examVideo.readyState === examVideo.HAVE_ENOUGH_DATA) {
+                    ctx.drawImage(examVideo, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            fetch('/proctoring/process_frame/', {
+                                method: 'POST',
+                                headers: { 
+                                    'Content-Type': 'application/json',
+                                    'X-CSRFToken': '{{ csrf_token }}'
+                                },
+                                body: JSON.stringify({ image: reader.result, attempt_id: attemptId })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                // Update Identified Objects for Mobile Feed
+                                const objectOverlay = document.getElementById('mobile-objects-overlay');
+                                const objectList = document.getElementById('mobile-objects-list');
+                                if (data.objects && data.objects.length > 0) {
+                                    objectList.innerText = data.objects.join(', ');
+                                    objectOverlay.style.display = 'block';
+                                } else if (objectOverlay) {
+                                    objectOverlay.style.display = 'none';
+                                }
+
+                                if (data.status === 'violation' && data.type) {
+                                    const msgMap = {
+                                        'multiple_faces': 'UNAUTHORIZED PERSON DETECTED',
+                                        'no_face': 'FACE NOT VISIBLE - STUDENT DISAPPEARED',
+                                        'looking_down': 'HEAD DOWN - POSSIBLE PHONE USAGE',
+                                        'unauthorized_voice': 'UNAUTHORIZED VOICE/SOUND DETECTED',
+                                        'electronic_device_detected': 'ELECTRONIC DEVICE DETECTED',
+                                        'notebook_detected': 'NOTEBOOK/BOOK DETECTED',
+                                        'unauthorized_person_behind': 'PERSON DETECTED BEHIND STUDENT'
+                                    };
+                                    showViolationAlert(data.type, msgMap[data.type] || data.message || 'VIOLATION DETECTED');
+                                } else {
+                                    // Reset to normal if no violation
+                                    const statusIndicator = document.getElementById('status-indicator');
+                                    if (statusIndicator) {
+                                        statusIndicator.innerText = "System Normal";
+                                        statusIndicator.style.color = "#4ade80";
+                                    }
+                                }
+                            })
+                            .catch(err => console.error('Frame error:', err));
+                        };
+                        reader.readAsDataURL(blob);
+                    }, 'image/jpeg', 0.6);
+                }
+            };
+            
+            // Start Front Camera Analysis (Every 1 second)
+            setInterval(processFrame, 1000);
         })
         .catch(err => {
-            console.error("Webcam error", err);
-            const errorDiv = document.getElementById('camera-error');
-            const errorMsg = document.getElementById('camera-error-msg');
-            errorDiv.style.display = 'block';
-
-            if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && window.location.protocol !== 'https:') {
-                errorMsg.innerHTML = `
-                    Browser blocked camera access due to insecure connection.<br><br>
-                    <strong>SOLUTION:</strong><br>
-                    Use <code>localhost</code> instead of IP address.<br>
-                    Change URL to: <br>
-                    <a href="http://localhost:8000${window.location.pathname}" style="color: cyan;">http://localhost:8000${window.location.pathname}</a>
-                `;
-            } else {
-                errorMsg.innerText = "Please allow camera permissions in your browser settings.";
-            }
+            console.error('Front camera error:', err);
+            const statusDiv = document.getElementById('status-indicator');
+            statusDiv.innerHTML = '❌ Camera Access Denied';
+            statusDiv.style.color = 'red';
         });
 
-    // Room Scan Logic
-    document.getElementById('btn-start-scan').addEventListener('click', () => {
-        document.getElementById('btn-start-scan').style.display = 'none';
-        document.getElementById('scan-progress').style.display = 'block';
-        scanGuide.style.display = 'block';
-        scanStatus.innerText = "Please slowly rotate your device 360° to show your room.";
-
-        // Motion-Based Scan Process
-        let progress = 0;
-        const interval = 200; // Check every 200ms
-
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = 100; // Small size for fast processing
-        tempCanvas.height = 100;
-        const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
-
-        let prevData = null;
-        let stationaryCount = 0;
-
-        const scanTimer = setInterval(() => {
-            if (scanVideo.videoWidth === 0) return; // Wait until video is playing
-
-            tempCtx.drawImage(scanVideo, 0, 0, tempCanvas.width, tempCanvas.height);
-            const currentData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height).data;
-
-            if (prevData) {
-                // Calculate difference
-                let diff = 0;
-                for (let i = 0; i < currentData.length; i += 4) {
-                    diff += Math.abs(currentData[i] - prevData[i]) +
-                        Math.abs(currentData[i + 1] - prevData[i + 1]) +
-                        Math.abs(currentData[i + 2] - prevData[i + 2]);
-                }
-                const avgDiff = diff / (currentData.length / 4);
-
-                // If there's meaningful movement
-                if (avgDiff > 12) { // Threshold for motion 
-                    progress += 1.5; // Requires ~13 seconds of steady movement
-                    stationaryCount = 0;
+    // === MOBILE REAR CAMERA POLLING ===
+    let mobileCheckInterval = setInterval(() => {
+        fetch(`/proctoring/get_mobile_frame/${attemptId}/`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok' && data.image) {
+                    // Mobile connected
+                    mobileFeedImg.src = data.image;
+                    mobileFeedImg.style.display = 'block';
+                    mobileStatusDiv.style.display = 'none';
+                    reconnectQrDiv.style.display = 'none';
+                    mobileConnected = true;
                 } else {
-                    stationaryCount++;
-                }
-            }
-            prevData = currentData;
-
-            if (progress > 100) progress = 100;
-            scanBar.style.width = progress + '%';
-
-            // Provide user feedback
-            if (stationaryCount > 5) {
-                scanStatus.innerText = "Please keep rotating the camera to cover the full room.";
-                scanStatus.style.color = "yellow";
-            } else if (progress >= 33 && progress < 66) {
-                scanStatus.innerText = "Keep rotating... ensure all corners are visible.";
-                scanStatus.style.color = "white";
-            } else if (progress >= 66) {
-                scanStatus.innerText = "Almost done...";
-                scanStatus.style.color = "white";
-            }
-
-            if (progress >= 100) {
-                clearInterval(scanTimer);
-                scanStatus.style.color = "white";
-                completeScan();
-            }
-        }, interval);
-    });
-
-    function completeScan() {
-        scanStatus.innerText = "Scan Verified. Starting Exam...";
-        scanBar.style.backgroundColor = "#4ade80"; // Green
-
-        setTimeout(() => {
-            // Hide Overlay
-            overlay.style.transition = "opacity 0.5s";
-            overlay.style.opacity = "0";
-            setTimeout(() => {
-                overlay.style.display = "none";
-
-                // Activate Exam
-                mainContent.style.opacity = "1";
-                mainContent.style.pointerEvents = "all";
-
-                // Start Exam Logic
-                startTimer();
-                startProctoring();
-
-                // Fullscreen recommendation
-                document.documentElement.requestFullscreen().catch(err => console.log(err));
-            }, 500);
-        }, 1000);
-    }
-
-    function startProctoring() {
-        setInterval(() => {
-            if (!localStream) return;
-
-            // Capture frame from the shared stream (examVideo is showing it)
-            canvas.width = examVideo.videoWidth;
-            canvas.height = examVideo.videoHeight;
-            ctx.drawImage(examVideo, 0, 0, canvas.width, canvas.height);
-            const dataURL = canvas.toDataURL('image/jpeg');
-
-            // Send to server
-            fetch('/proctoring/process_frame/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    image: dataURL,
-                    attempt_id: attemptId
-                })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    const statusDiv = document.getElementById('status-indicator');
-                    if (data.status === 'violation') {
-                        statusDiv.innerHTML = "WARNING: " + data.type;
-                        statusDiv.style.color = "red";
-                        // alert("Warning: " + data.type); // Optional: reduce spam
-                    } else {
-                        statusDiv.innerHTML = "System Normal";
-                        statusDiv.style.color = "green";
-                    }
-                })
-                .catch(err => console.error(err));
-
-        }, 5000); // Check every 5 seconds
-
-        // Mobile Feed Polling
-        const mobileFeedImg = document.getElementById('mobile-feed-exam');
-        const mobileStatusDiv = document.getElementById('mobile-status');
-        const reconnectQrDiv = document.getElementById('reconnect-qr');
-        let qrGenerated = false;
-
-        setInterval(() => {
-            fetch(`/proctoring/get_mobile_frame/${attemptId}/`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'ok') {
-                        mobileFeedImg.src = data.image;
-                        mobileFeedImg.style.display = 'block';
-                        mobileStatusDiv.style.display = 'none';
-                        reconnectQrDiv.style.display = 'none';
-                    } else {
-                        // Maintain the last frame visible, but overlay with 'Offline' status
-                        mobileStatusDiv.style.display = 'block';
-                        mobileStatusDiv.innerText = "Mobile Offline";
-                        mobileStatusDiv.style.color = "red";
-                        mobileStatusDiv.style.background = "rgba(0,0,0,0.5)";
-                        mobileStatusDiv.style.padding = "5px";
-
-                        // Show QR Code for reconnection
-                        reconnectQrDiv.style.display = 'block';
-                        if (!qrGenerated) {
-                            // Ensure the container is visible before generating
-                            new QRCode(document.getElementById("qrcode-exam"), {
+                    // Mobile not connected
+                    mobileFeedImg.style.display = 'none';
+                    mobileStatusDiv.style.display = 'block';
+                    mobileStatusDiv.innerHTML = '📱 <strong>Mobile Disconnected</strong><br><small>Scan QR code below to connect rear camera</small>';
+                    reconnectQrDiv.style.display = 'block';
+                    mobileConnected = false;
+                    
+                    // Generate QR code once
+                    if (!qrGenerated && qrContainer.innerHTML === '') {
+                        try {
+                            new QRCode(qrContainer, {
                                 text: mobileUrl,
-                                width: 200, // Make it bigger so it's easier to scan
-                                height: 200,
-                                colorDark: "#000000",
-                                colorLight: "#ffffff",
+                                width: 130,
+                                height: 130,
+                                colorDark: '#000000',
+                                colorLight: '#ffffff',
                                 correctLevel: QRCode.CorrectLevel.H
                             });
                             qrGenerated = true;
+                        } catch(e) {
+                            console.error('QR generation error:', e);
                         }
                     }
-                })
-                .catch(err => console.error("Mobile feed error", err));
-        }, 1000); // Poll every 1 second for smoother feed
-
-        // Timer Logic
-        function startTimer() {
-            const timerDisplay = document.getElementById('timer');
-            timerDisplay.textContent = formatTime(timeLeft);
-
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                timerDisplay.textContent = formatTime(timeLeft);
-
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    alert("Time's up!");
-                    submitExam();
                 }
-            }, 1000);
-        }
+            })
+            .catch(err => {
+                console.error('Mobile polling error:', err);
+                mobileFeedImg.style.display = 'none';
+                mobileStatusDiv.innerHTML = '⚠️ Connection Error';
+            });
+    }, 1500);
 
-        function formatTime(seconds) {
-            const m = Math.floor(seconds / 60);
-            const s = seconds % 60;
-            return `${m}:${s < 10 ? '0' : ''}${s}`;
+    // === TIMER ===
+    function updateTimer() {
+        timeLeft--;
+        const mins = Math.floor(timeLeft / 60);
+        const secs = timeLeft % 60;
+        document.getElementById('timer').innerText = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+        
+        if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            clearInterval(mobileCheckInterval);
+            submitExam();
         }
+    }
 
-        // Tab Switch Detection
-        document.addEventListener("visibilitychange", () => {
-            if (document.hidden && document.getElementById('room-scan-overlay').style.display === 'none') {
-                // Only log if exam has started
-                alert("Tab switching is a violation!");
+    timerInterval = setInterval(updateTimer, 1000);
+
+    // === VIOLATION ALERT WITH LOGGING ===
+    function showViolationAlert(type, message) {
+        console.warn(`⚠️ VIOLATION: ${type}`, message);
+        
+        // Log to server
+        fetch('/proctoring/log_violation/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                attempt_id: attemptId,
+                violation_type: type,
+                severity: ['multiple_faces', 'no_face', 'looking_down'].includes(type) ? 'critical' : 'high',
+                details: message
+            })
+        }).catch(err => console.error('Logging error:', err));
+        
+        // Show alert
+        const alert = document.createElement('div');
+        alert.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff3333;
+            color: white;
+            padding: 20px 25px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            z-index: 9999;
+            box-shadow: 0 4px 20px rgba(255,0,0,0.4);
+            animation: slideIn 0.3s ease-out;
+            max-width: 300px;
+        `;
+        alert.innerHTML = `
+            <div style="color: #ffff00; font-size: 1.3rem;">⚠️ VIOLATION!</div>
+            <div style="margin-top: 8px; font-size: 0.95rem;">${type.toUpperCase()}</div>
+            <div style="margin-top: 5px; font-size: 0.85rem; opacity: 0.9;">${message}</div>
+        `;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 4000);
+    }
+
+    // === SUBMIT EXAM ===
+    function submitExam() {
+        if(!confirm('Submit exam?')) return;
+        
+        clearInterval(mobileCheckInterval);
+        clearInterval(timerInterval);
+        
+        // Collect answers from radio buttons
+        const form = document.getElementById('exam-form');
+        const questions = document.querySelectorAll('.question-block');
+
+        questions.forEach(q => {
+            const inputs = q.querySelectorAll('input[type="radio"]:checked');
+            if (inputs.length > 0) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = inputs[0].name;
+                input.value = inputs[0].value;
+                form.appendChild(input);
             }
         });
 
-        // Disable Right Click
-        document.addEventListener('contextmenu', event => event.preventDefault());
+        form.submit();
+    }
 
-        function submitExam() {
-            // Collect answers
-            const form = document.getElementById('exam-form');
-            const questions = document.querySelectorAll('.question-block');
-
-            questions.forEach(q => {
-                const inputs = q.querySelectorAll('input[type="radio"]:checked');
-                if (inputs.length > 0) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = inputs[0].name;
-                    input.value = inputs[0].value;
-                    form.appendChild(input);
-                }
-            });
-
-            form.submit();
+    // Prevent tab switching (log as violation)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            showViolationAlert('TAB_SWITCH', 'Browser tab switched - Exam window lost focus');
         }
+    });
+
+    // Prevent right-click (log as violation)
+    document.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showViolationAlert('RIGHT_CLICK', 'Right-click/inspect element attempt blocked');
+    });
+
+    // Prevent F12 and dev tools
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+            e.preventDefault();
+            showViolationAlert('DEV_TOOLS', 'Developer tools attempt blocked');
+        }
+    });
+
+    // Add CSS animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translate(-50%, -60%); opacity: 0; }
+            to { transform: translate(-50%, -50%); opacity: 1; }
+        }
+    `;
+    document.head.appendChild(style);
+    // Room scan logic was here, removed premature closing tag
+
 </script>
 {% endblock %}

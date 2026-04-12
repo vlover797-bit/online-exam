@@ -36,28 +36,47 @@
 </head>
 
 <body>
-    <h1>Mobile Proctoring Active</h1>
-    <p>Please position your phone to show your side view and screen.</p>
+    <h1>📱 Mobile Room Monitoring</h1>
+    
+    <div style="background: #1a1a2e; padding: 20px; margin: 20px 0; border-radius: 10px; max-width: 500px; margin-left: auto; margin-right: auto;">
+        <div style="text-align: left; color: #4ade80;">
+            <h3>📡 WiFi Connection Status</h3>
+            <p id="wifi-status" style="font-size: 0.9rem; margin: 10px 0;">Checking connection...</p>
+            <p style="font-size: 0.85rem; background: #333; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                <strong>Connected to:</strong> <span id="device-ip" style="color: #4ade80; font-family: monospace;">Detecting...</span>
+            </p>
+            <hr style="border-color: #444; margin: 10px 0;">
+            <h4>📱 Setup Instructions:</h4>
+            <ol style="padding-left: 20px; line-height: 1.8; font-size: 0.9rem;">
+                <li><strong>Make sure phone and computer are on SAME WiFi network</strong></li>
+                <li><strong>Position rear camera</strong> to show your room/desk area</li>
+                <li><strong>Keep screen ON</strong> during the entire exam</li>
+                <li><strong>DO NOT move out of frame</strong> - stay visible at all times</li>
+                <li><strong>Ensure good lighting</strong> so room is clearly visible</li>
+            </ol>
+        </div>
+    </div>
 
     <button id="start-btn"
-        style="padding: 15px 30px; font-size: 1.2rem; background: #4ade80; color: #000; border: none; border-radius: 8px; margin: 20px 0; cursor: pointer; font-weight: bold;">Tap
-        Here to Connect Camera</button>
+        style="padding: 15px 30px; font-size: 1.2rem; background: #4ade80; color: #000; border: none; border-radius: 8px; margin: 20px 0; cursor: pointer; font-weight: bold;">🎥 Start Rear Camera</button>
+
+    <p style="margin-top: 10px; font-size: 0.9rem; color: #4ade80;">
+        Connected to: <span style="font-family: monospace; color: #fff; background: #333; padding: 5px 10px; border-radius: 3px;" id="conn-info">Checking...</span>
+    </p>
 
     <video id="video" autoplay playsinline muted style="display: none;"></video>
     <div id="status" class="status" style="display: none;">Initializing...</div>
 
     <div id="camera-error"
         style="display: none; padding: 20px; text-align: left; background: #222; margin-top: 20px; border-radius: 10px;">
-        <h3 style="color: #ff4d4d; margin-top: 0;">Camera Access Blocked</h3>
-        <p>Your browser blocked camera access because this connection is not HTTPS.</p>
-        <p><strong>To fix this on Chrome Android:</strong></p>
+        <h3 style="color: #ff4d4d; margin-top: 0;">🔴 Camera Access Blocked</h3>
+        <p>Your browser blocked camera access. This usually happens on non-HTTPS connections.</p>
+        <p><strong>✅ Solution:</strong></p>
         <ol style="padding-left: 20px; line-height: 1.6;">
-            <li>Go to: <code
-                    style="background: #444; padding: 2px 5px; border-radius: 4px; word-break: break-all;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
-            </li>
-            <li>Enable <strong>"Insecure origins treated as secure"</strong>.</li>
-            <li>Add your current host url to the text box.</li>
-            <li>Click <strong>Relaunch</strong> at the bottom.</li>
+            <li>Make sure you're on the <strong>same WiFi network</strong> as your exam computer</li>
+            <li>Open this URL again from the exam page QR code</li>
+            <li>On Chrome Android: Go to <code
+                    style="background: #444; padding: 2px 5px; border-radius: 4px; word-break: break-all;">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> and enable it</li>
         </ol>
     </div>
 
@@ -69,8 +88,15 @@
         const statusDiv = document.getElementById('status');
         const startBtn = document.getElementById('start-btn');
         const cameraError = document.getElementById('camera-error');
+        const wifiStatus = document.getElementById('wifi-status');
+        const connInfo = document.getElementById('conn-info');
         const context = canvas.getContext('2d');
         const attemptId = "{{ attempt_id }}";
+        
+        // Display connection info
+        if (connInfo) {
+            connInfo.innerText = window.location.hostname + ':' + (window.location.port || '8001');
+        }
 
         // Wake Lock
         let wakeLock = null;
@@ -83,6 +109,32 @@
                     console.error('Wake Lock error:', err);
                 }
             }
+        }
+
+        // Check WiFi Connection
+        function checkWiFiConnection() {
+            if (navigator.connection) {
+                const connection = navigator.connection.type;
+                if (connection === 'wifi' || connection === 'unknown') {
+                    wifiStatus.innerHTML = '✅ <strong>WiFi Connected</strong> - Ready to stream';
+                    wifiStatus.style.color = '#4ade80';
+                } else {
+                    wifiStatus.innerHTML = '⚠️ <strong>Not on WiFi</strong> - Please connect to WiFi network';
+                    wifiStatus.style.color = '#ff6b6b';
+                }
+            } else {
+                wifiStatus.innerHTML = '✅ <strong>Network Status: Unknown</strong> - Connection should be stable';
+                wifiStatus.style.color = '#4ade80';
+            }
+        }
+
+        checkWiFiConnection();
+        setInterval(checkWiFiConnection, 5000); // Check every 5 seconds
+
+        // Display current device connection info
+        const deviceIpSpan = document.getElementById('device-ip');
+        if (deviceIpSpan) {
+            deviceIpSpan.innerText = window.location.hostname + ':' + (window.location.port || '8001');
         }
 
         // Re-request wake lock on visibility change
@@ -107,7 +159,7 @@
             }
 
             navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "environment" }
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
             })
                 .then(stream => {
                     video.srcObject = stream;
@@ -116,7 +168,7 @@
                     cameraError.style.display = 'none';
                     // Explicit play might be needed on some mobile browsers
                     video.play().catch(e => console.error("Video play error:", e));
-                    setInterval(sendFrame, 1000); // Send frame every 1 second for smoother video
+                    setInterval(sendFrame, 300); // 3.3 FPS for smooth connection
                 })
                 .catch(err => {
                     statusDiv.style.display = 'none';
@@ -127,33 +179,65 @@
 
         function sendFrame() {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth / 2; // Reduce resolution for speed
-                canvas.height = video.videoHeight / 2;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const dataURL = canvas.toDataURL('image/jpeg', 0.5); // Compress quality
+                try {
+                    canvas.width = video.videoWidth / 2; // Reduce resolution for speed
+                    canvas.height = video.videoHeight / 2;
+                    if (canvas.width > 0 && canvas.height > 0) {
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        const dataURL = canvas.toDataURL('image/jpeg', 0.5); // Compress quality
 
-                fetch('/proctoring/mobile_upload/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: dataURL, attempt_id: attemptId })
-                })
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.status === 'ok') {
-                            statusDiv.innerText = "Streaming Active (" + new Date().toLocaleTimeString() + ")";
-                            statusDiv.style.color = "#4ade80";
-                        } else {
-                            statusDiv.innerText = "Server Error: " + (data.message || "Unknown");
-                            statusDiv.style.color = "orange";
-                        }
-                    })
-                    .catch(err => {
-                        console.error("Upload error", err);
-                        statusDiv.innerText = "Connection Lost. Retrying...";
-                        statusDiv.style.color = "red";
-                    });
+                        fetch('/proctoring/mobile_upload/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image: dataURL, attempt_id: attemptId })
+                        })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.status === 'ok') {
+                                    statusDiv.innerText = "🟢 Streaming Active (" + new Date().toLocaleTimeString() + ")";
+                                    statusDiv.style.color = "#4ade80";
+                                } else {
+                                    console.warn("Server response not ok:", data);
+                                    statusDiv.innerText = "⚠️ Server issue - retrying...";
+                                    statusDiv.style.color = "#ff6b6b";
+                                }
+                            })
+                            .catch(err => {
+                                console.error("Upload error", err);
+                                statusDiv.innerText = "⚠️ Connection unstable - Retrying...";
+                                statusDiv.style.color = "#ff6b6b";
+                            });
+                    }
+                } catch (e) {
+                    console.error("Frame capture error:", e);
+                }
             }
         }
+
+        // Automatically connect camera on page load
+        let autoConnectAttempts = 0;
+        const maxAutoConnectAttempts = 3;
+        
+        function attemptAutoConnect() {
+            if (startBtn && startBtn.style.display !== 'none' && autoConnectAttempts < maxAutoConnectAttempts) {
+                autoConnectAttempts++;
+                console.log(`Auto-connect attempt ${autoConnectAttempts}/${maxAutoConnectAttempts}`);
+                startBtn.click();
+            }
+        }
+        
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                attemptAutoConnect();
+            }, 500);
+        });
+        
+        // Retry auto-connect if user closes browser permissions prompt
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && startBtn && startBtn.style.display !== 'none') {
+                setTimeout(attemptAutoConnect, 500);
+            }
+        });
     </script>
 </body>
 

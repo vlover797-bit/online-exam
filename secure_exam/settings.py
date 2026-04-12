@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,25 +27,52 @@ SECRET_KEY = 'django-insecure-8%kamwrum8phpk&z!ahh7wlv-i)to0z7e!%7rwj2d#ab*9ab(8
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*', '.vercel.app']
+ALLOWED_HOSTS = ['*', '.vercel.app', 'localhost', '127.0.0.1']
 
 CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://localhost:8001',
+    'http://127.0.0.1:8000',
+    'http://127.0.0.1:8001',
+    'https://localhost:8000',
+    'https://localhost:8001',
+    'https://127.0.0.1:8000',
+    'https://127.0.0.1:8001',
     'https://*.serveo.net',
     'https://*.serveousercontent.com',
+    'https://*.lhr.life',
+    'https://*.localhost.run',
+    'https://pinggy.link',
+    'https://172.20.10.2:8000',
+    # Network access support
+    'http://10.205.19.210:8001',
+    'https://10.205.19.210:8001',
+    'http://10.95.153.210:8001',
+    'https://10.95.153.210:8001',
+    'http://192.168.0.0:8001',
+    'http://192.168.1.0:8001',
+    'http://192.168.0.0:8000',
+    'http://192.168.1.0:8000',
 ]
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+if os.environ.get("VERCEL") == "1":
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Application definition
 
 INSTALLED_APPS = [
+    'django_mongodb_backend',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
     'accounts',
     'exams',
     'proctoring',
@@ -81,25 +110,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'secure_exam.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# Apply IPv4 patch to prevent NAT64 timeouts with MongoDB
+import socket
+orig_getaddrinfo = socket.getaddrinfo
+def getaddrinfo_v4(*args, **kwargs):
+    res = orig_getaddrinfo(*args, **kwargs)
+    return [r for r in res if r[0] == socket.AF_INET]
+socket.getaddrinfo = getaddrinfo_v4
 
-# Database configuration using MongoDB Atlas
-import os
-
-# Use standard mongodb+srv without aggressive timeouts
+# Use standard mongodb+srv for Atlas
 database_url = os.environ.get(
     "DATABASE_URL", 
-    "mongodb+srv://psyckid:psyckid123@cluster0.9z7ne2s.mongodb.net/online_exam_db?retryWrites=true&w=majority&appName=Cluster0"
+    "mongodb+srv://psyckid:Seenu123@cluster0.9z7ne2s.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&authSource=admin"
 )
 
+# Database configuration using MongoDB Atlas
 DATABASES = {
     'default': {
         'ENGINE': 'django_mongodb_backend',
         'NAME': 'online_exam_db',
-        'CLIENT': {
-            'host': database_url,
-        },
+        'HOST': database_url,
     }
 }
 
@@ -142,13 +172,14 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# Default primary key field type for MongoDB
+DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
 
 AUTH_USER_MODEL = 'accounts.User'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles_build' / 'static'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+# Silence MongoDB AutoField check for built-in apps
+SILENCED_SYSTEM_CHECKS = ["mongodb.fields.auto.E001"]

@@ -22,3 +22,6 @@ coverage.xml
 db.sqlite3
 media/
 staticfiles_build/
+venv_old/
+pwd_results*
+.env

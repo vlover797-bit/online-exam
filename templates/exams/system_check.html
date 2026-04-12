@@ -8,7 +8,7 @@
     <div class="row" style="display: flex; gap: 20px; flex-wrap: wrap;">
         <!-- Laptop Camera -->
         <div class="card" style="flex: 1; min-width: 300px; background: #1f2937; padding: 20px; border-radius: 10px;">
-            <h3>1. Laptop Camera Check</h3>
+            <h3>1. Laptop Camera Check - Front View (Student Face)</h3>
             <video id="laptop-video" width="100%" autoplay playsinline muted
                 style="border: 2px solid cyan; border-radius: 5px;"></video>
             <p id="laptop-status" style="color: #4ade80; margin-top: 10px;">Checking camera...</p>
@@ -16,7 +16,7 @@
 
         <!-- Mobile Connection -->
         <div class="card" style="flex: 1; min-width: 300px; background: #1f2937; padding: 20px; border-radius: 10px;">
-            <h3>2. Connect Mobile Camera</h3>
+            <h3>2. Mobile Camera - Rear View (Room Monitoring)</h3>
             <p>Scan this QR code with your mobile device:</p>
             <div id="qrcode" style="background: white; padding: 10px; display: inline-block; border-radius: 5px;"></div>
             <p style="margin-top: 10px; font-size: 0.9rem;">
@@ -61,26 +61,62 @@
     let mobileOk = false;
 
     // 1. Laptop Camera Setup
-    navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-            laptopVideo.srcObject = stream;
-            laptopStatus.innerText = "Camera Active";
-            laptopOk = true;
-            checkStatus();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        laptopStatus.innerText = "❌ Error: Camera API not available";
+        laptopStatus.style.color = "#ff4d4d";
+    } else {
+        navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 },
+                facingMode: 'user'
+            }, 
+            audio: false 
         })
-        .catch(err => {
-            laptopStatus.innerText = "Error: " + err.message;
-            laptopStatus.style.color = "#ff4d4d";
-        });
+            .then(stream => {
+                laptopVideo.srcObject = stream;
+                laptopStatus.innerText = "✅ Camera Active - Front View Ready";
+                laptopStatus.style.color = "#4ade80";
+                laptopOk = true;
+                checkStatus();
+            })
+            .catch(err => {
+                let errorMsg = err.message;
+                if (err.name === 'NotAllowedError') {
+                    errorMsg = 'Camera permission denied. Please allow access.';
+                } else if (err.name === 'NotFoundError') {
+                    errorMsg = 'No camera found. Please check your device.';
+                } else if (err.name === 'NotReadableError') {
+                    errorMsg = 'Camera is in use. Close other apps using camera.';
+                } else if (err.name === 'SecurityError') {
+                    errorMsg = 'Security error - Use HTTPS or localhost.';
+                }
+                laptopStatus.innerText = "❌ Error: " + errorMsg;
+                laptopStatus.style.color = "#ff4d4d";
+            });
+    }
 
-    // 2. Generate QR Code
-    new QRCode(document.getElementById("qrcode"), {
-        text: mobileUrl,
-        width: 150,
-        height: 150
-    });
+    // 2. Generate QR Code with validation
+    try {
+        console.log('Generating QR code for URL:', mobileUrl);
+        new QRCode(document.getElementById("qrcode"), {
+            text: mobileUrl,
+            width: 150,
+            height: 150,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+        console.log('QR code generated successfully');
+    } catch (err) {
+        console.error('QR Code generation error:', err);
+        document.getElementById("qrcode").innerHTML = '<div style="padding: 20px; background: #ff4d4d; color: white; border-radius: 5px;">QR generation failed. Use direct link above.</div>';
+    }
 
     // 3. Poll for Mobile Feed
+    let mobileConnectionAttempts = 0;
+    let mobileConnectionEstablished = false;
+    
     setInterval(() => {
         fetch(`/proctoring/get_mobile_frame/${attemptId}/`)
             .then(res => res.json())
@@ -91,18 +127,31 @@
                     mobilePlaceholder.style.display = 'none';
                     if (!mobileOk) {
                         mobileOk = true;
+                        mobileConnectionEstablished = true;
                         checkStatus();
                     }
+                    mobileConnectionAttempts = 0;
                 } else {
-                    // blink or show offline
-                    if (mobileOk) {
-                        mobileOk = false; // Lost connection
+                    // Connection lost
+                    mobileConnectionAttempts++;
+                    if (mobileConnectionEstablished && mobileConnectionAttempts > 3) {
+                        mobileOk = false;
+                        mobileFeed.style.display = 'none';
+                        mobilePlaceholder.style.display = 'block';
+                        mobilePlaceholder.innerHTML = '⚠️ Mobile Disconnected - Waiting for reconnection...';
+                        mobilePlaceholder.style.color = '#ff6b6b';
                         checkStatus();
+                    } else if (!mobileConnectionEstablished) {
+                        mobilePlaceholder.innerHTML = `📱 Waiting for mobile connection... (${mobileConnectionAttempts}s)`;
                     }
                 }
             })
-            .catch(err => console.error(err));
-    }, 2000);
+            .catch(err => {
+                console.error('Mobile frame fetch error:', err);
+                mobilePlaceholder.innerHTML = '⚠️ Connection error - Check mobile device';
+                mobilePlaceholder.style.color = '#ff6b6b';
+            });
+    }, 1000); // Check every 1 second for faster detection
 
     function checkStatus() {
         if (laptopOk && mobileOk) {

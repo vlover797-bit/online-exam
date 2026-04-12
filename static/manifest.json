@@ -1,0 +1,23 @@
+{
+    "name": "Secure Exam App",
+    "short_name": "SecureExam",
+    "description": "Cross-platform Proctoring Application",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#111111",
+    "theme_color": "#00ffff",
+    "icons": [
+        {
+            "src": "/static/icons/icon-192x192.png",
+            "type": "image/png",
+            "sizes": "192x192",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/static/icons/icon-512x512.png",
+            "type": "image/png",
+            "sizes": "512x512",
+            "purpose": "any maskable"
+        }
+    ]
+}
