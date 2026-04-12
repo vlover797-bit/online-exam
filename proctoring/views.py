@@ -256,10 +256,15 @@ def process_frame(request):
 def system_check_view(request, attempt_id):
     attempt = get_object_or_404(StudentExamAttempt, id=attempt_id)
     # Generate URL for mobile with IP address for QR scanning from other devices
-    # FORCE HTTPS for mobile camera access (Required by browsers for non-localhost)
-    local_ip = get_local_ip()
-    port = request.META.get('SERVER_PORT', '8001')
-    mobile_url = f"https://{local_ip}:{port}/proctoring/mobile/{attempt.id}/"
+    # Set smart mobile URL: Public domain on Vercel, Local IP on local dev
+    if os.environ.get('VERCEL'):
+        # On Vercel, use the public domain
+        mobile_url = request.build_absolute_uri(f"/proctoring/mobile/{attempt.id}/")
+    else:
+        # On local dev, use the local IP so phone can connect via WiFi
+        local_ip = get_local_ip()
+        port = request.META.get('SERVER_PORT', '8000')
+        mobile_url = f"http://{local_ip}:{port}/proctoring/mobile/{attempt.id}/"
     
     return render(request, 'exams/system_check.html', {
         'attempt': attempt,
